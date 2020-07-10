@@ -425,7 +425,7 @@ polynomialsUndetermined3[x_Symbol, maxDegree_Integer] :=
 ClearAll[IntegrateAlgebraic];
 
 Options[IntegrateAlgebraic] = {
-	VerifySolutions -> False, 
+	VerifySolutions -> True, 
 	"MaxRationalDegree" -> 8,
 	"MaxNumeratorDegree" -> 8,
 	"MaxDenominatorDegree" -> 4,
@@ -475,7 +475,7 @@ start = AbsoluteTime[];
 If[PolynomialQ[unintegratedPart, x] || rationalQ[unintegratedPart, x], 
 	debugPrint1["Integrand is in Q(x): ", unintegratedPart];
 	integral = Integrate[unintegratedPart, x];
-	Return[ {0, 0, integral} ]
+	Return[ {0, 0, integral}, Module ]
 ];
 
 (* Integrand is in Q(x, (a*x + b)^(m[1]/n[1]), (a*x + b)^(m[2]/n[2]), \[Ellipsis]) *)
@@ -483,7 +483,10 @@ If[PolynomialQ[unintegratedPart, x] || rationalQ[unintegratedPart, x],
 If[ListQ @ linearRadicalToRational[unintegratedPart, x, u],
 	debugPrint1["Integrand is in Q(x, (a*x + b)^(m[1]/n[1]), (a*x + b)^(m[2]/n[2]), \[Ellipsis]): ", unintegratedPart];
 	integral = integrateLinearRadical[unintegratedPart, x];
-	Return[ {0, 0, integral} ]
+	If[TrueQ[! OptionValue[VerifySolutions]] || verifySolution[integral, unintegratedPart],
+		Return[ {0, 0, integral}, Module ],
+		Return[ {0, unintegratedPart, 0}, Module ]
+	]
 ];
 
 (* Integrand is in Q(x, (a x + b x + c)^(n[1]/2), (a x + b x + c)^(n[2]/2), \[Ellipsis]) *)
@@ -491,7 +494,10 @@ If[ListQ @ linearRadicalToRational[unintegratedPart, x, u],
 If[ListQ @ quadraticRadicalToRational[unintegratedPart, x, u],
 	debugPrint1["Integrand is in Q(x, (a x + b x + c)^(n[1]/2), (a x + b x + c)^(n[2]/2), \[Ellipsis]): ", unintegratedPart];
 	integral = integrateQuadraticRadical[unintegratedPart, x];
-	Return[ {0, 0, integral} ]
+	If[TrueQ[! OptionValue[VerifySolutions]] || verifySolution[integral, unintegratedPart],
+		Return[ {0, 0, integral}, Module ],
+		Return[ {0, unintegratedPart, 0}, Module ]
+	]
 ];
 
 (* Integrand is in Q(x, (a*x + b)^(1/2), (c*x + d)^(1/2)) *)
@@ -499,7 +505,10 @@ If[ListQ @ quadraticRadicalToRational[unintegratedPart, x, u],
 If[ListQ @ multipleLinearRadicalToRational[unintegratedPart, x, u],
 	debugPrint1["Integrand is in Q(x, (a*x + b)^(1/2), (c*x + d)^(1/2)): ", unintegratedPart];
 	integral = integrateMultipleLinearRadical[unintegratedPart, x];
-	Return[ {0, 0, integral} ]
+	If[TrueQ[! OptionValue[VerifySolutions]] || verifySolution[integral, unintegratedPart],
+		Return[ {0, 0, integral}, Module ],
+		Return[ {0, unintegratedPart, 0}, Module ]
+	]
 ];
 
 (* Integrand is in Q(x,((a x + b)/(c x + d))^(m[1]/n[1]), ((a x + b)/(c x + d))^(m[2]/n[2]), \[Ellipsis]) *)
@@ -507,7 +516,10 @@ If[ListQ @ multipleLinearRadicalToRational[unintegratedPart, x, u],
 If[ListQ @ linearRatioRadicalToRational[unintegratedPart, x, u],
 	debugPrint1["Integrand is in Q(x,((a x + b)/(c x + d))^(m[1]/n[1]), ((a x + b)/(c x + d))^(m[2]/n[2]), \[Ellipsis]): ", unintegratedPart];
 	integral = integrateLinearRatioRadical[unintegratedPart, x];
-	Return[ {0, 0, integral} ]
+	If[TrueQ[! OptionValue[VerifySolutions]] || verifySolution[integral, unintegratedPart],
+		Return[ {0, 0, integral}, Module ],
+		Return[ {0, unintegratedPart, 0}, Module ]
+	]
 ];
 
 (* Nested radicals. *)
@@ -516,61 +528,76 @@ If[nestedCount[unintegratedPart, x] > 0,
 	If[ListQ @ decreaseNestedRadicals[unintegratedPart, x, u],
 		debugPrint1["Integrand contains nested radicals: ", unintegratedPart];
 		result = integrateNestedRadicals[unintegratedPart, x, u];
-		rationalPart    += result[[1]]; 
-		unintegratedPart = result[[2]];
-		integratedPart  += result[[3]],
-		Return[{0, integrand, 0}] (* As no further methods deal with nested radicals. *)
+		If[TrueQ[! OptionValue[VerifySolutions]] || verifySolution[result[[3]], unintegratedPart - result[[1]] - result[[2]]],
+			rationalPart    += result[[1]]; 
+			unintegratedPart = result[[2]];
+			integratedPart  += result[[3]],
+			Return[{0, integrand, 0}, Module] (* As no further methods deal with nested radicals. *)
+		],
+		Return[{0, integrand, 0}, Module] (* As no further methods deal with nested radicals. *)
 	]
 ];
 
 (* Rational substitution with undetermined coefficients. *)
 
 result = rationalUndeterminedIntegrate[unintegratedPart, x, opts];
-rationalPart    += result[[1]]; 
-unintegratedPart = result[[2]];
-integratedPart  += result[[3]];
+If[TrueQ[! OptionValue[VerifySolutions]] || verifySolution[result[[3]], unintegratedPart - result[[1]] - result[[2]]],
+	rationalPart    += result[[1]]; 
+	unintegratedPart = result[[2]];
+	integratedPart  += result[[3]]
+];
 debugPrint1["Rational undetermined : ", {rationalPart, unintegratedPart, integratedPart}];
 
 (* Linear rational substitution. *)
 
 If[TrueQ[OptionValue["LinearRational"]],
 	result = linearRationalIntegrate[unintegratedPart, x, opts];
-	rationalPart    += result[[1]]; 
-	unintegratedPart = result[[2]];
-	integratedPart  += result[[3]];
+	If[TrueQ[! OptionValue[VerifySolutions]] || verifySolution[result[[3]], unintegratedPart - result[[1]] - result[[2]]],
+		rationalPart    += result[[1]]; 
+		unintegratedPart = result[[2]];
+		integratedPart  += result[[3]]
+	];
 	debugPrint1["Linear rational : ", {rationalPart, unintegratedPart, integratedPart}];
 ];
 
 (* Generalised Gunther substitution. *)
 
 result = guntherIntegrate[unintegratedPart, x, opts];
-rationalPart    += result[[1]]; 
-unintegratedPart = result[[2]];
-integratedPart  += result[[3]];
+If[TrueQ[! OptionValue[VerifySolutions]] || verifySolution[result[[3]], unintegratedPart - result[[1]] - result[[2]]],
+	rationalPart    += result[[1]]; 
+	unintegratedPart = result[[2]];
+	integratedPart  += result[[3]]
+];
 debugPrint1["Gunther : ", {rationalPart, unintegratedPart, integratedPart}];
 
 (* Solving for the logarithmic part with undetermined coefficients. *)
 
 result = logPartIntegrate[unintegratedPart, x, opts];
-rationalPart    += result[[1]]; 
-unintegratedPart = result[[2]];
-integratedPart  += result[[3]];
+If[TrueQ[! OptionValue[VerifySolutions]] || verifySolution[result[[3]], unintegratedPart - result[[1]] - result[[2]]],
+	rationalPart    += result[[1]]; 
+	unintegratedPart = result[[2]];
+	integratedPart  += result[[3]]
+];
 debugPrint1["logPart : ", {rationalPart, unintegratedPart, integratedPart}];
 
 (* Partial fraction expansion and integrate term-by-term. *)
 
 result = partialFractionIntegrate[unintegratedPart, x, opts];
-rationalPart    += result[[1]]; 
-unintegratedPart = result[[2]];
-integratedPart  += result[[3]];
+If[TrueQ[! OptionValue[VerifySolutions]] || verifySolution[result[[3]], unintegratedPart - result[[1]] - result[[2]]],
+	rationalPart    += result[[1]]; 
+	unintegratedPart = result[[2]];
+	integratedPart  += result[[3]]
+];
 debugPrint1["partialFractionIntegrate : ", {rationalPart, unintegratedPart, integratedPart}];
 
 (* Expand and integrate term-by-term. *)
 
 result = expandIntegrate[unintegratedPart, x, opts];
-rationalPart    += result[[1]]; 
-unintegratedPart = result[[2]];
-integratedPart  += result[[3]];
+If[TrueQ[! OptionValue[VerifySolutions]] || verifySolution[result[[3]], unintegratedPart - result[[1]] - result[[2]]],
+	rationalPart    += result[[1]]; 
+	unintegratedPart = result[[2]];
+	integratedPart  += result[[3]]
+];
 debugPrint1["expandIntegrate : ", {rationalPart, unintegratedPart, integratedPart}];
 
 	If[$Testing,
@@ -1234,6 +1261,21 @@ postProcess[e_, x_, OptionsPattern[]] := Module[{$function, simp, permutations, 
 
 (* ::Input:: *)
 (*postProcess[-((4 Sqrt[-2+2 x^5-x^7+x^8])/(3 x^6))+(6 Sqrt[-2+2 x^5-x^7+x^8])/x^2+(4 Sqrt[-2+2 x^5-x^7+x^8])/(3 x)-2/3 x Sqrt[-2+2 x^5-x^7+x^8]+2/3 x^2 Sqrt[-2+2 x^5-x^7+x^8]+3 Log[1-Sqrt[-2+2 x^5-x^7+x^8]/x^2]-3 Log[1+Sqrt[-2+2 x^5-x^7+x^8]/x^2],x]*)
+
+
+(* ::Subsection::Closed:: *)
+(*verifySolution*)
+
+
+verifySolution[integral_, integrand_] := With[{dd = D[integral, x]},
+(* Order tests from fastest to slowest. *)
+	TrueQ[
+		numericZeroQ[dd - integrand] || 
+		numericZeroQ[dd - integrand, Precision -> 30] || 
+		PossibleZeroQ[Together[dd - integrand]] || 
+		PossibleZeroQ[D[Simplify[dd - integrand], x]]
+	]
+]
 
 
 (* ::Subsection::Closed:: *)
@@ -2868,6 +2910,10 @@ simp
 
 
 (* ::Input:: *)
+(*decreaseNestedRadicals[((1+x)Sqrt[1-Sqrt[1-x^2]])/(1-x),x,u]*)
+
+
+(* ::Input:: *)
 (*decreaseNestedRadicals[Sqrt[x-Sqrt[x-Sqrt[1-x^2]]],x,u]*)
 
 
@@ -2953,8 +2999,10 @@ If[MatchQ[uintegrands, {}|{{}}|_Solve],
 uintegrands = uintegrands /. Dt[u] -> 1;
 
 (* Pick the correct substitution. *)
-gooduintegrands = Cases[uintegrands, {_ -> intU_} /; PossibleZeroQ[integrand - PowerExpand @ Cancel @ Together[PowerExpand[intU] D[sub, x] /. u -> sub]] || 
-PossibleZeroQ[integrand - Cancel @ Together[intU D[sub, x] /. u -> sub]]];
+gooduintegrands = Cases[uintegrands, {_ -> intU_} /; ((*PossibleZeroQ[integrand - PowerExpand @ Cancel @ Together[PowerExpand[intU] D[sub, x] /. u -> sub]] || *)PossibleZeroQ[integrand - Cancel @ Together[intU D[sub, x] /. u -> sub]])];
+
+gooduintegrands = Join[gooduintegrands,Cases[uintegrands, {dd_ -> intU_} /; PossibleZeroQ[integrand - PowerExpand @ Cancel @ Together[PowerExpand[intU] D[sub, x] /. u -> sub]] :> {dd -> intU // PowerExpand}]
+];
 
 If[gooduintegrands === {}, 
 	Return[ False ]
@@ -2966,10 +3014,14 @@ debugPrint2[gooduintegrands];
 
 If[usub === {},
 	{},
-	gooduintegrands = Dt[y]/.gooduintegrands[[-1]] //FactorSquareFree//PowerExpand;
+	gooduintegrands = Dt[y]/.gooduintegrands[[-1]] //FactorSquareFree;
 {gooduintegrands, u -> sub}
 ]
 ]
+
+
+(* ::Input:: *)
+(*subst[Sqrt[1-Sqrt[1-x^2]]/(1-x),u->Sqrt[1-Sqrt[1-x^2]],x]*)
 
 
 (* ::Input:: *)
